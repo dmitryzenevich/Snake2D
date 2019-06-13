@@ -5,11 +5,13 @@ using UnityEngine.UI;
 
 public class Snake : MonoBehaviour
 {
+    #region Variables
+
     [SerializeField]
     private Tilemap _level;
 
     [SerializeField]
-    private List<GameObject> _tail = new List<GameObject>();
+    private List<SnakeTile> _snakeTiles = new List<SnakeTile>();
 
     [SerializeField]
     private float speed;
@@ -17,6 +19,18 @@ public class Snake : MonoBehaviour
     private Vector3 _direction = Vector3.up;
     private Vector3 _position;
     private Vector3 _oldPosition;
+    private Vector3 _newPosition;
+
+    #endregion
+
+    #region Properties
+
+    public bool IsPositionDifference
+    {
+        get { return _oldPosition != _newPosition; }
+    }
+
+    #endregion
 
     #region Sprites
 
@@ -87,60 +101,80 @@ public class Snake : MonoBehaviour
 
     #region Unity Lifecycle
 
-    private void Awake()
+    private void OnEnable()
     {
         _spriteRenderer = GetComponent<SpriteRenderer>();
 
-        _buttonUp.onClick.AddListener(MoveUp);
-        _buttonRight.onClick.AddListener(MoveRight);
-        _buttonDown.onClick.AddListener(MoveDown);
-        _buttonLeft.onClick.AddListener(MoveLeft);
+        _buttonUp.onClick.AddListener(SetDirectionUp);
+        _buttonRight.onClick.AddListener(SetDirectionRight);
+        _buttonDown.onClick.AddListener(SetDirectionDown);
+        _buttonLeft.onClick.AddListener(SetDirectionLeft);
+    }
+
+    private void OnDisable()
+    {
+        _buttonUp.onClick.RemoveAllListeners();
+        _buttonRight.onClick.RemoveAllListeners();
+        _buttonDown.onClick.RemoveAllListeners();
+        _buttonLeft.onClick.RemoveAllListeners();
     }
 
     private void Start()
     {
         _position = transform.position;
-        MoveUp();
+        SetDirectionUp();
     }
 
     private void Update()
     {
-        _position += _direction * speed * Time.deltaTime;
-        Vector3 newPosition = _level.WorldToCell(_position);
+        Move();
 
-        if (_oldPosition != newPosition)
-            MoveTail(newPosition);
+        if (IsPositionDifference)
+            MoveTail(_newPosition);
 
-        transform.position = newPosition;
-        _oldPosition = newPosition;
+        transform.position = _newPosition;
+        _oldPosition = _newPosition;
     }
 
     #endregion
 
     #region Move
 
-    private void MoveUp()
+    private void Move()
     {
-        Move(Vector3.up, _spriteUp);
+        _position += _direction * speed * Time.deltaTime;
+        _newPosition = _level.WorldToCell(_position);
     }
 
-    private void MoveRight()
+    #endregion
+
+    #region SetDirection
+
+    private void SetDirectionUp()
     {
-        Move(Vector3.right, _spriteRight);
+        SetDirection(Vector3.up, _spriteUp);
     }
 
-    private void MoveDown()
+    private void SetDirectionRight()
     {
-        Move(Vector3.down, _spriteDown);
+        SetDirection(Vector3.right, _spriteRight);
     }
 
-    private void MoveLeft()
+    private void SetDirectionDown()
     {
-        Move(Vector3.left, _spriteLeft);
+        SetDirection(Vector3.down, _spriteDown);
     }
 
-    private void Move(Vector3 direction, Sprite sprite)
+    private void SetDirectionLeft()
     {
+        SetDirection(Vector3.left, _spriteLeft);
+    }
+
+    private void SetDirection(Vector3 direction, Sprite sprite)
+    {
+        if (Vector3.Dot(_direction, direction).Equals(-1))
+            return;
+
         _direction = direction;
         _spriteHead = sprite;
     }
@@ -151,12 +185,14 @@ public class Snake : MonoBehaviour
 
     private void MoveTail(Vector3 target)
     {
-        for (int i = _tail.Count - 1; i > 0; i--)
+        if (_snakeTiles[0].transform.position == target)
+            return;
+        for (int i = _snakeTiles.Count - 1; i > 0; i--)
         {
-            _tail[i].transform.position = _tail[i - 1].transform.position;
+            _snakeTiles[i].transform.position = _snakeTiles[i - 1].transform.position;
         }
 
-        _tail[0].transform.position = target;
+        _snakeTiles[0].transform.position = target;
 
         SetHead();
         SetTailsSprites();
@@ -169,17 +205,17 @@ public class Snake : MonoBehaviour
 
     private void SetTailsSprites()
     {
-        for (int i = _tail.Count - 2; i > 0; i--)
+        for (int i = _snakeTiles.Count - 2; i > 0; i--)
         {
-            var prevTransform = _tail[i + 1].transform;
-            var nextTransform = _tail[i - 1].transform;
-            var currentTransform = _tail[i].transform;
+            var prevTile = _snakeTiles[i + 1];
+            var nextTile = _snakeTiles[i - 1];
+            var currentTile = _snakeTiles[i];
 
-            currentTransform.GetComponent<SpriteRenderer>().sprite =
-                GetSprite(currentTransform.position, prevTransform.position, nextTransform.position);
+            currentTile.SpriteRenderer.sprite =
+                GetSprite(currentTile.transform.position, prevTile.transform.position, nextTile.transform.position);
         }
 
-        _tail[_tail.Count - 1].GetComponent<SpriteRenderer>().sprite = GetSpriteTailEnd(_tail[_tail.Count - 2].transform.position);
+        _snakeTiles[_snakeTiles.Count - 1].SpriteRenderer.sprite = GetSpriteTailEnd(_snakeTiles[_snakeTiles.Count - 2].transform.position);
     }
 
     private Sprite GetSprite(Vector3 current, Vector3 prev, Vector3 next)
@@ -194,15 +230,15 @@ public class Snake : MonoBehaviour
 
     private Sprite GetSpriteTailEnd(Vector3 next)
     {
-        var dir = (_tail[_tail.Count - 1].transform.position - next).normalized;
+        var dir = (_snakeTiles[_snakeTiles.Count - 1].transform.position - next).normalized;
 
-        if (dir.x.Equals(1))
+        if (dir.Equals(Vector3.right))
             return _spriteTailEndRight;
-        else if (dir.x.Equals(-1))
+        else if (dir.Equals(Vector3.left))
             return _spriteTailEndLeft;
-        else if (dir.y.Equals(1))
+        else if (dir.Equals(Vector3.up))
             return _spriteTailEndUp;
-        else if (dir.y.Equals(-1))
+        else if (dir.Equals(Vector3.down))
             return _spriteTailEndDown;
 
         return null;
