@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.Tilemaps;
 using UnityEngine.UI;
 
@@ -7,14 +9,14 @@ public class Snake : MonoBehaviour
 {
     #region Variables
 
-    [SerializeField]
-    private Tilemap _level;
+    [SerializeField] private Tilemap _level;
+    [SerializeField] private Tilemap _items;
 
-    [SerializeField]
-    private List<SnakeTile> _snakeTiles = new List<SnakeTile>();
+    [SerializeField] private TileBase _foodTile;
 
-    [SerializeField]
-    private float speed;
+    [SerializeField] private List<SnakeTile> _snakeTiles = new List<SnakeTile>();
+
+    [SerializeField] private float speed;
 
     private Vector3 _direction = Vector3.up;
     private Vector3 _position;
@@ -36,66 +38,47 @@ public class Snake : MonoBehaviour
 
     private SpriteRenderer _spriteRenderer;
 
-    [SerializeField]
-    private Sprite _spriteHead;
+    [SerializeField] private Sprite _spriteHead;
 
-    [SerializeField]
-    private Sprite _spriteUp;
+    [SerializeField] private Sprite _spriteUp;
 
-    [SerializeField]
-    private Sprite _spriteRight;
+    [SerializeField] private Sprite _spriteRight;
 
-    [SerializeField]
-    private Sprite _spriteDown;
+    [SerializeField] private Sprite _spriteDown;
 
-    [SerializeField]
-    private Sprite _spriteLeft;
+    [SerializeField] private Sprite _spriteLeft;
 
-    [SerializeField]
-    private Sprite _spriteHorizontal;
+    [SerializeField] private Sprite _spriteHorizontal;
 
-    [SerializeField]
-    private Sprite _spriteVertical;
+    [SerializeField] private Sprite _spriteVertical;
 
-    [SerializeField]
-    private Sprite _spriteTailEndUp;
+    [SerializeField] private Sprite _spriteTailEndUp;
 
-    [SerializeField]
-    private Sprite _spriteTailEndRight;
+    [SerializeField] private Sprite _spriteTailEndRight;
 
-    [SerializeField]
-    private Sprite _spriteTailEndDown;
+    [SerializeField] private Sprite _spriteTailEndDown;
 
-    [SerializeField]
-    private Sprite _spriteTailEndLeft;
+    [SerializeField] private Sprite _spriteTailEndLeft;
 
-    [SerializeField]
-    private Sprite _spriteTailBendingUpToRight;
+    [SerializeField] private Sprite _spriteTailBendingUpToRight;
 
-    [SerializeField]
-    private Sprite _spriteTailBendingRightToDown;
+    [SerializeField] private Sprite _spriteTailBendingRightToDown;
 
-    [SerializeField]
-    private Sprite _spriteTailBendingDownToLeft;
+    [SerializeField] private Sprite _spriteTailBendingDownToLeft;
 
-    [SerializeField]
-    private Sprite _spriteTailBendingLeftToUp;
+    [SerializeField] private Sprite _spriteTailBendingLeftToUp;
 
     #endregion
 
     #region Buttons
 
-    [SerializeField]
-    private Button _buttonUp;
+    [SerializeField] private Button _buttonUp;
 
-    [SerializeField]
-    private Button _buttonRight;
+    [SerializeField] private Button _buttonRight;
 
-    [SerializeField]
-    private Button _buttonDown;
+    [SerializeField] private Button _buttonDown;
 
-    [SerializeField]
-    private Button _buttonLeft;
+    [SerializeField] private Button _buttonLeft;
 
     #endregion
 
@@ -128,12 +111,53 @@ public class Snake : MonoBehaviour
     private void Update()
     {
         Move();
+    }
 
-        if (IsPositionDifference)
-            MoveTail(_newPosition);
+    #endregion
 
-        transform.position = _newPosition;
-        _oldPosition = _newPosition;
+    #region Food
+
+    private void CheckFood()
+    {
+        Vector3Int position = _items.WorldToCell(_newPosition + Vector3.down);
+        TileBase tile = _items.GetTile(position);
+        if (tile is FoodTile)
+        {
+            var food = (FoodTile)tile;
+//            AddSnakeTile();
+            SetFoodNewPosition(food);
+            _items.SetTile(position, null);
+        }
+    }
+
+    private void SetFoodNewPosition(TileBase foodTile)
+    {
+        bool isFood = default;
+        bool isSnake = default;
+        Vector3Int randPos;
+        do
+        {
+            randPos = GetRandomPosition(new Vector3Int(-8, -4, 0), new Vector3Int(8, 4, 0));
+            TileBase tile = _items.GetTile(randPos);
+            isFood = tile is FoodTile;
+            isSnake = CheckSnakeTile(randPos);
+        } while (isFood || isSnake);
+        _items.SetTile(randPos, foodTile);
+    }
+
+    private Vector3Int GetRandomPosition(Vector3Int min, Vector3Int max)
+    {
+        int x = Random.Range(min.x, max.x + 1);
+        int y = Random.Range(min.y, max.y + 1);
+        return new Vector3Int(x, y, 0);
+    }
+
+    private bool CheckSnakeTile(Vector3Int position)
+    {
+        foreach (var tile in _snakeTiles)
+            if (tile.transform.position == position)
+                return true;
+        return false;
     }
 
     #endregion
@@ -144,6 +168,15 @@ public class Snake : MonoBehaviour
     {
         _position += _direction * speed * Time.deltaTime;
         _newPosition = _level.WorldToCell(_position);
+
+        if (IsPositionDifference)
+        {
+            MoveTail(_newPosition);
+            CheckFood();
+        }
+
+        transform.position = _newPosition;
+        _oldPosition = _newPosition;
     }
 
     #endregion
@@ -215,7 +248,13 @@ public class Snake : MonoBehaviour
                 GetSprite(currentTile.transform.position, prevTile.transform.position, nextTile.transform.position);
         }
 
-        _snakeTiles[_snakeTiles.Count - 1].SpriteRenderer.sprite = GetSpriteTailEnd(_snakeTiles[_snakeTiles.Count - 2].transform.position);
+        _snakeTiles[_snakeTiles.Count - 1].SpriteRenderer.sprite =
+            GetSpriteTailEnd(_snakeTiles[_snakeTiles.Count - 2].transform.position);
+    }
+
+    private void AddSnakeTile()
+    {
+        _snakeTiles.Add(_snakeTiles[1]);
     }
 
     private Sprite GetSprite(Vector3 current, Vector3 prev, Vector3 next)
